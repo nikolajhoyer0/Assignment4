@@ -1,0 +1,143 @@
+<html xmlns:html="http://www.w3.org/1999/xhtml"><head>
+  <meta charset="utf-8" />
+  <meta content="pandoc" name="generator" />
+  <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport" />
+  <meta content="Ken Friis Larsen (kflarsen@diku.dk) and Oleksandr Shturmov (oleks@oleks.info)" name="author" />
+  <title>Chat with Erlang</title>
+  <style>
+code{white-space: pre;}
+</style>
+<link href="https://fonts.googleapis.com/css?family=Dancing+Script|Source+Serif+Pro|Oswald|Source+Code+Pro" rel="stylesheet" />
+  <style type="text/css">
+body {
+    margin-top: 1.0em;
+    background-color: white;
+/*    font-family: 'Gentium Book Basic', sans-serif;
+   font-size: 1.143em;
+*/    font-size: 13pt;
+    color: black;
+    width: 90%;
+    margin: 0 auto;
+}
+
+html {
+  font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
+}
+
+h2, h3, h4, h5, h6 {
+  font-family: "Oswald", Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  color: #313131;
+  letter-spacing: -.025rem;
+}
+
+code {
+   font-family: "Source Code Pro", Menlo, monospace;
+/*   font-size: 1.136em;
+    font-size: 13pt;;  
+*/   background-color: #F0F3F3;
+
+}
+
+pre {
+   background-color: #F0F3F3;
+   padding: 6px;
+   word-wrap: break-word;
+   white-space: pre-wrap;
+   font-family: "Source Code Pro", Menlo, monospace;
+   border: 1px solid silver;
+/*    font-size: 15pt;
+*/}
+
+h1.title {
+    font-family: 'Dancing Script', sans-serif;
+    text-align: center; font-size: 3.8em; color: black; margin-bottom: 3px;
+}
+h1 .small { font-size: 0.4em; }
+h1 a { text-decoration: none }
+h2 { font-size: 1.5em; color: black; }
+h2.author { font-size: 1em; text-align: center; color: black; }
+h3.date {  font-size: 1em; text-align: center; color: black; }
+a { color: black; }
+.description { font-size: 1.2em; margin-bottom: 30px; margin-top: 30px; font-style: italic;}
+.download { float: right; }
+/* pre { background: #000; color: #fff; padding: 15px;} */
+hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
+.footer { text-align:center; padding-top:30px; font-style: italic; }
+table   { border-collapse: collapse }
+td { border: 1px solid black }
+
+
+</style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<header>
+<h1 class="title">Chat with Erlang</h1>
+<h2 class="author">Ken Friis Larsen <code>(kflarsen@diku.dk)</code> and Oleksandr Shturmov <code>(oleks@oleks.info)</code></h2>
+<h3 class="date">Last revision: October 3, 2016</h3>
+</header>
+<nav id="TOC">
+<ul>
+<li><a href="#objective">Objective</a></li>
+<li><a href="#api">API</a></li>
+<li><a href="#hand-in-instructions">Hand-in Instructions</a></li>
+</ul>
+</nav>
+<h2 id="objective">Objective</h2>
+<p>This assignment is about implementing a relay chat server in Erlang (ERC). A relay chat server consists of a central server that clients can connect to, and then send messages which are relayed (broadcast) to other connected clients. An often seen problem with relay chat servers is that when the number of users goes up, various mechanisms are needed for reducing the noise (the number of messages) in the network, the most basic one is the notion of <em>filters</em>.</p>
+<p>The server will keep track of which clients are connected, and for each client, possibly, a filter. When a client sends a message, it is relayed to other connected clients. Each client is registered with a <em>nickname</em>.</p>
+<p>A <em>message</em> is a pair <code>{Nick, Cont}</code> where <code>Nick</code> is the nickname of the client who sent the message, and <code>Cont</code> is the <em>content</em> of the message.</p>
+<h2 id="api">API</h2>
+<p>Implement a module <code>erc</code> with the following API:</p>
+<ul>
+<li><p><code>start()</code> for staring an ERC server. Returns <code>{ok, Server}</code> on success or <code>{error, Reason}</code> if some error occurred.</p></li>
+<li><p><code>connect(Server, Nick)</code> for connecting to an ERC server, with the nickname <code>Nick</code> which should be an atom. Returns <code>{ok, Ref}</code> and adds the client to the server if no other client is connected using that nickname. <code>Ref</code> is a unique reference used for identifying messages from the server to the client. Otherwise, if the nickname <code>Nick</code> is taken it should return <code>{error, Nick, is_taken}</code>.</p>
+<p>When a client is connected it should be ready to receive Erlang messages which are pairs of the form <code>{Ref, Msg}</code> where <code>Ref</code> is the reference returned from <code>connect</code>, and <code>Msg</code> is an ERC message, presumably for showing in some kind of UI.</p></li>
+</ul>
+<!-- * `rooms(Server)` for getting a list of rooms on the -->
+<!--   server. Returns a list of atoms. -->
+<!-- * `new_room(Server, Name)` for starting a new room with -->
+<!--   the name `Name` which should be an atom. Returns `ok` -->
+<!--   if there were no rooms called `Name` on the server; otherwise returns -->
+<!--   `{error, Name, room_exists}`. -->
+<!-- * `enter(Server, Name)` for entering the room called -->
+<!--   `Name`. Return `ok` if there is a room called -->
+<!--   `Name`, and the client will now be in that room; otherwise -->
+<!--   returns `{error, unknown_room}`. -->
+<ul>
+<li><p><code>chat(Server, Cont)</code> for sending a message with the content <code>Cont</code>, which should be a string, to all other clients in the room. This function should be non-blocking.</p></li>
+<li><p><code>history(Server)</code> for getting the recent messages (capped at 42 messages) sent at the server. Returns a list of messages ordered so that newest message is the first element in the list and the last element is the oldest message.</p></li>
+<li><p><code>filter(Server, Method, P)</code> for filtering messages before they are sent to the client. Where:</p>
+<ol type="a">
+<li><code>P</code> is predicate that takes a message (that is, a tuple of an atom and a string) and returns <code>true</code> if the message should be sent to the client, or <code>false</code> if the message should not be sent to the client;</li>
+<li><code>Method</code> is one of the atoms <code>compose</code> or <code>replace</code>. If <code>Method</code> is <code>compose</code> it means that <code>P</code> should be composed with the previous filter, <code>Q</code>, (if any) installed for the client, meaning that both <code>P</code> and <code>Q</code> must return <code>true</code> for a message to be sent to the client. Otherwise, <code>P</code> should replace any previous filter (if any) installed for the client.</li>
+</ol></li>
+<li><p><code>plunk(Server, Nick)</code> add a filter for ignoring any message from <code>Nick</code>. Should be implemented using <code>filter</code>, with the <code>compose</code> method.</p></li>
+<li><p><code>censor(Server, Words)</code> add a filter for ignoring messages containing any word in <code>Words</code>, which should be a list of strings. Should be implemented using <code>filter</code> with the <code>compose</code> method.</p></li>
+</ul>
+<h2 id="hand-in-instructions">Hand-in Instructions</h2>
+<p>You should hand in two things:</p>
+<ol type="1">
+<li><p>A short report, <code>report.pdf</code>, explaining your code, and containing an assessment of your implementation, including what this assessment is based upon. In the report, you should also discuss:</p>
+<ol type="a">
+<li>If your implementation can guarantee that all clients will receive messages in the same order or not. Argue why this is, or isn&#8217;t the case.</li>
+<li>You should explain how you have made your implementation of <code>filter</code> robust and why that is needed. (If your implementation of <code>filter</code> is not robust, you should still discuss possible errors and possible solutions.)</li>
+<li>In-how-far you implement the above API correctly. (Test this.) Are the right functions blocking/non-blocking?</li>
+</ol></li>
+<li><p>A ZIP archive <code>src.zip</code>, containing one directory <code>src</code>, containing your source code and tests. Your implementation of the <code>erc</code> module (thus in a file called <code>erc.erl</code>) and the code you have used to test your module in other file(s).</p></li>
+</ol>
+<p>Make sure that you adhere to the types of the API, and test that you do.</p>
+<p>To keep your TA happy, follow these simple rules:</p>
+<ol type="1">
+<li>The Erlang compiler, with the parameter <code>-Wall</code>, should not yield any errors or warnings for your code.</li>
+<li>You should comment your code properly, especially if you doubt its correctness, or if you think there is a more elegant way to write a certain piece of code. A good comment should explain your ideas and provide insight.</li>
+<li>Adhere to the restrictions set in the assignment text, and make sure that you export all of the requested API (even if some functions only have a dummy implementation).</li>
+<li>Describe clearly what parts of the assignment you have solved.</li>
+</ol>
+<p>End of assignment text.</p>
+
+
+</body></html>
