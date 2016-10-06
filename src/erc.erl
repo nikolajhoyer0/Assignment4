@@ -31,7 +31,9 @@
 % start() for staring an ERC server. Returns {ok, Server} on success or
 % {error, Reason} if some error occurred.
 start() ->
-    try spawn(fun() -> loop() end) of
+    NickDict = dict:new(),
+    MsgLog =  list:new(),
+    try spawn(fun() -> loop(NickDict, MsgLog) end) of
         Pid -> {ok, Pid}
     catch
         _:_ -> {error, this_should_not_happen}
@@ -89,6 +91,8 @@ plunk(Server, Nick) ->
 censor(Server, Words) ->
   async(Server, {censor, Words}).
 
+
+
 %%%
 %%% COMMUNICATION PRIMITIVES
 %%%
@@ -101,22 +105,28 @@ blocking(Pid, Request) ->
 async(Pid, Request) ->
   Pid ! Request
 
+
+
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-loop() ->
+
+% make a reference
+make_ref()
+
+loop(NickDict, MsgLog) ->
   receive
     % From should be a pid
     {From, {connect, Nick}} ->
       % send back my own pid
       From ! {self(), ComputeResult(Request)},
-      loop();
+      loop(NewNickDict, MsgLog);
 
     {From, {chat, Cont}} ->
-    loop();
+    loop(NickDict, NewMsgLog);
 
     {From, history} ->
-    loop();
+    loop(NickDict, MsgLog);
 
     {From, {filter, Method, P}} ->
     loop();
@@ -129,5 +139,5 @@ loop() ->
 
     {From, Other} ->
       From ! {self(), {error, Other}},
-      loop()
+      loop(NickDict, MsgLog)
   end.
