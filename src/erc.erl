@@ -85,7 +85,14 @@ plunk(Server, Nick).
 % filter with the compose method.
 censor(Server, Words).
 
+blocking(Pid, Request) ->
+  Pid ! {self(), Request},
+  receive
+    {Pid, Response} -> Response
+  end.
 
+async(Pid, Request) ->
+  Pid ! Request
 
 %%%
 %%% INTERNAL IMPLEMENTATION
