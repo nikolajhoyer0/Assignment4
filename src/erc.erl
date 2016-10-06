@@ -48,8 +48,10 @@ start() ->
 % When a client is connected it should be ready to receive Erlang messages which
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
 % connect, and Msg is an ERC message, presumably for showing in some kind of UI.
-connect(Server, Nick) ->
+connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
     blocking(Server, {connect, Nick}).
+connect(_, _) -> throw('connect: bad input').
+
 
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
