@@ -32,9 +32,9 @@
 % {error, Reason} if some error occurred.
 start() ->
     Ref = make_ref(),
-    NickDict = dict:new(),
+    Nicks = [],
     MsgLog = [],
-    try spawn(fun() -> loop(Ref, NickDict, MsgLog) end) of
+    try spawn(fun() -> loop(Ref, Nicks, MsgLog) end) of
         Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
@@ -97,8 +97,6 @@ plunk(Server, Nick) ->
 censor(Server, Words) ->
     async(Server, {censor, Words}).
 
-
-
 %%%
 %%% COMMUNICATION PRIMITIVES
 %%%
@@ -109,64 +107,49 @@ blocking(Server, Request) ->
     end.
 
 async(Server, Request) ->
-    Server ! Request.
-
-
+    Server ! {self(), Request}.
 
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-loop(Ref, NickDict, MsgLog) ->
+loop(Ref, Nicks, MsgLog) ->
     receive
         {From, {connect, Nick}} ->
-            Pred = fun(_,N) -> N == Nick end,
-            FilteredNickDict = dict:filter(Pred, NickDict),
-            case dict:is_empty(FilteredNickDict) of
-                % not taken
-                true ->
-                    NewNickDict = dict:store(Nick, From, NickDict),
-                    From ! {self(), {ok, Ref}},
-                    loop(Ref, NewNickDict, MsgLog);
-                % taken
+            case lists:keyfind(Nick, 2, Nicks) of
                 false ->
+                    NewNicks = [{From, Nick}|Nicks],
+                    From ! {self(), {ok, Ref}},
+                    loop(Ref, NewNicks, MsgLog);
+                _ ->
                     From ! {self(), {error, Nick, is_taken}},
-                    loop(Ref, NickDict, MsgLog)
+                    loop(Ref, Nicks, MsgLog)
             end;
 
-            % case dict:is_key(Nick, NickDict) of
-            %     false ->
-            %         NewNickDict = dict:store(Nick, From, NickDict),
-            %         From ! {self(), {ok, Ref}},
-            %         loop(Ref, NewNickDict, MsgLog);
-            %     true ->
-            %         From ! {self(), {error, Nick, is_taken}},
-            %         loop(Ref, NickDict, MsgLog)
-            % end;
-
         {From, {chat, Cont}} ->
-            Nick = dict:find(From, NickDict),
-            case Nick of
-                {ok, _} -> ok;
-                error   -> throw('chat: cannot find sender.')
-            end,
-            NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 0, 41),
-            Fun = fun(To, N) -> To ! {Ref, {N, Cont}} end,
-            dict:map(Fun, NickDict),
-            loop(Ref, NickDict, NewMsgLog);
+            case lists:keyfind(From, 1, Nicks) of
+                false ->
+                    loop(Ref, Nicks, MsgLog);
+                {From, Nick} ->
+                    NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
+                    SendMsg = fun({To, Nick_}) -> To ! {Ref, {Nick_, Cont}} end,
+                    lists:map(SendMsg, Nicks),
+                    loop(Ref, Nicks, NewMsgLog)
+            end;
 
-        % {From, history} ->
-        %     loop(Ref, NickDict, MsgLog);
-        %
+        {From, history} ->
+            From ! {self(), {ok, MsgLog}},
+            loop(Ref, Nicks, MsgLog);
+
         % {From, {filter, Method, P}} ->
-        %     loop(Ref, NickDict, MsgLog);
+        %     loop(Ref, Nicks, MsgLog);
         %
         % {From, {plunk, Nick}} ->
-        %     loop(Ref, NickDict, MsgLog);
+        %     loop(Ref, Nicks, MsgLog);
         %
         % {From, {censor, Words}} ->
-        %     loop(Ref, NickDict, MsgLog);
+        %     loop(Ref, Nicks, MsgLog);
 
         {From, Other} ->
             From ! {self(), {error, Other}},
-            loop(Ref, NickDict, MsgLog)
+            loop(Ref, Nicks, MsgLog)
     end.
