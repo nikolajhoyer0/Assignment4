@@ -45,19 +45,24 @@ start() ->
 % used for identifying messages from the server to the client. Otherwise, if the
 % nickname Nick is taken it should return {error, Nick, is_taken}.
 
+connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
+    blocking(Server, {connect, Nick}).
+
+connect(_, _) -> throw('connect: bad input').
+
+
 % When a client is connected it should be ready to receive Erlang messages which
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
 % connect, and Msg is an ERC message, presumably for showing in some kind of UI.
-connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
-    blocking(Server, {connect, Nick}).
-connect(_, _) -> throw('connect: bad input').
-
 
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
 % non-blocking.
-chat(Server, Cont) ->
-    async(Server, {chat, Cont}).
+chat(Server, Cont) when is_list(Cont) ->
+    async(Server, {chat, Cont});
+
+chat(_, _) -> throw('chat: bad input').
+
 
 % history(Server) for getting the recent messages (capped at 42 messages) sent
 % at the server. Returns a list of messages ordered so that newest message is
