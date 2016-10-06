@@ -4,6 +4,7 @@
          chat/2,
          history/1,
          filter/3,
+         get_filters/1,
          plunk/2,
          censor/2]).
 
@@ -33,8 +34,9 @@
 start() ->
     Ref = make_ref(),
     Clients = [],
+    Filters = [],
     MsgLog = [],
-    try spawn(fun() -> loop(Ref, Clients, MsgLog) end) of
+    try spawn(fun() -> loop(Ref, Clients, Filters, MsgLog) end) of
         Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
@@ -84,7 +86,10 @@ history(Server) ->
 %       for a message to be sent to the client. Otherwise, P should replace
 %       any previous filter (if any) installed for the client.
 filter(Server, Method, P) ->
-    async(Server, {filter, Method, P}).
+    blocking(Server, {filter, Method, P}).
+
+get_filters(Server) ->
+    blocking(Server, get_filters).
 
 % plunk(Server, Nick) add a filter for ignoring any message from Nick. Should
 % be implemented using filter, with the compose method.
@@ -112,44 +117,73 @@ async(Server, Request) ->
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-loop(Ref, Clients, MsgLog) ->
+loop(Ref, Clients, Filters, MsgLog) ->
     receive
         {ClientId, {connect, Nick}} ->
-            case lists:keyfind(Nick, 2, Clients) of
+            % check if the Nick is already taken by another user
+            NickTaken = fun({_, N}) -> N == Nick end,
+            case lists:any(NickTaken, Clients) of
+                % is available, update Client list with new Nick
                 false ->
-                    NewClients = [{ClientId, Nick}|Clients],
+                    NewClients = [{ClientId, Nick} | Clients],
                     ClientId ! {self(), {ok, Ref}},
-                    loop(Ref, NewClients, MsgLog);
-                _ ->
+                    loop(Ref, NewClients, Filters, MsgLog);
+                % is taken, reject
+                true ->
                     ClientId ! {self(), {error, Nick, is_taken}},
-                    loop(Ref, Clients, MsgLog)
+                    loop(Ref, Clients, Filters, MsgLog)
             end;
 
         {ClientId, {chat, Cont}} ->
             case lists:keyfind(ClientId, 1, Clients) of
                 false ->
-                    loop(Ref, Clients, MsgLog);
+                    loop(Ref, Clients, Filters, MsgLog);
                 {ClientId, Nick} ->
                     NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
-                    SendMsg = fun({To, Nick_}) -> To ! {Ref, {Nick_, Cont}} end,
+                    SendMsg = fun({To, Nick_}) ->
+                        To ! {Ref, {Nick_, Cont}} end,
                     lists:map(SendMsg, Clients),
-                    loop(Ref, Clients, NewMsgLog)
+                    loop(Ref, Clients, Filters, NewMsgLog)
             end;
 
         {ClientId, history} ->
             ClientId ! {self(), {ok, MsgLog}},
-            loop(Ref, Clients, MsgLog);
+            loop(Ref, Clients, Filters, MsgLog);
 
-        % {ClientId, {filter, Method, P}} ->
-        %     loop(Ref, Clients, MsgLog);
-        %
+        {ClientId, {filter, Method, P}} ->
+            case lists:keyfind(ClientId, 1, Filters) of
+                false ->
+                    NewFilters = [ {ClientId, [P] } | Filters ],
+                    ClientId ! {self(), {ok, 'filter: added for new client'}};
+                {ClientId, Ps} ->
+                    case Method of
+                        compose ->
+                            NewPs = [P | Ps];
+                        replace ->
+                            NewPs = [P];
+                        _ ->
+                            NewPs = Ps,
+                            ClientId ! {self(), {error, 'filter: method invalid'}}
+                    end,
+                    NewFilters = lists:keyreplace(ClientId, 1, Filters, {ClientId, NewPs}),
+                    ClientId ! {self(), {ok, 'filter: added for existing client'}};
+                _ ->
+                    NewFilters = Filters,
+                    ClientId ! {self(), {error, 'filter: internal error'}}
+            end,
+            loop(Ref, Clients, NewFilters, MsgLog);
+
+        {ClientId, get_filters} ->
+            ClientId ! {self(), {ok, Filters}},
+            loop(Ref, Clients, Filters, MsgLog);
+
         % {ClientId, {plunk, Nick}} ->
-        %     loop(Ref, Clients, MsgLog);
+        %     loop(Ref, Clients, Filters, MsgLog);
         %
         % {ClientId, {censor, Words}} ->
-        %     loop(Ref, Clients, MsgLog);
+        %     loop(Ref, Clients, Filters, MsgLog);
 
         {ClientId, Other} ->
             ClientId ! {self(), {error, Other}},
-            loop(Ref, Clients, MsgLog)
+            loop(Ref, Clients, Filters, MsgLog)
     end.
