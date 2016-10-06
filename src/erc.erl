@@ -47,7 +47,7 @@ start() ->
 % nickname Nick is taken it should return {error, Nick, is_taken}.
 
 connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
-    blocking(Server, {connect, Nick}).
+    blocking(Server, {connect, Nick});
 
 connect(_, _) -> throw('connect: bad input').
 
@@ -119,20 +119,39 @@ async(Server, Request) ->
 loop(Ref, NickDict, MsgLog) ->
     receive
         {From, {connect, Nick}} ->
-            case dict:is_key(Nick, NickDict) of
-                false ->
+            Pred = fun(_,N) -> N == Nick end,
+            FilteredNickDict = filter(Pred, NickDict)
+            case dict:is_empty(FilteredNickDict) of
+                % not taken
+                true ->
                     NewNickDict = dict:store(Nick, From, NickDict),
                     From ! {self(), {ok, Ref}},
                     loop(Ref, NewNickDict, MsgLog);
-                true ->
+                % taken
+                false ->
                     From ! {self(), {error, Nick, is_taken}},
                     loop(Ref, NickDict, MsgLog)
             end;
 
+            % case dict:is_key(Nick, NickDict) of
+            %     false ->
+            %         NewNickDict = dict:store(Nick, From, NickDict),
+            %         From ! {self(), {ok, Ref}},
+            %         loop(Ref, NewNickDict, MsgLog);
+            %     true ->
+            %         From ! {self(), {error, Nick, is_taken}},
+            %         loop(Ref, NickDict, MsgLog)
+            % end;
+
         {From, {chat, Cont}} ->
-            Fun = fun(Nick, To) -> To ! {Ref, {Nick, Cont}},
-            dict:map(Fun, NickDict),
+            Nick = dict:find(From, NickDict),
+            case Nick of
+                {ok, _} -> ok;
+                error   -> throw('chat: cannot find sender.')
+            end,
             NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 0, 41),
+            Fun = fun(To, N) -> To ! {Ref, {N, Cont}} end,
+            dict:map(Fun, NickDict),
             loop(Ref, NickDict, NewMsgLog);
 
         % {From, history} ->
