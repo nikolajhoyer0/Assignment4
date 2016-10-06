@@ -119,14 +119,20 @@ async(Server, Request) ->
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
 loop(Ref, Clients, MsgLog) ->
+
     receive
+
         {ClientId, {connect, Nick}} ->
-            case lists:keyfind(Nick, 2, Clients) of
+            % check if the Nick is already taken by another user
+            NickTaken = fun({_, N}) -> N == Nick end,
+            case lists:any(NickTaken, Clients) of
+                % is available, update Client list with new Nick
                 false ->
-                    NewClients = [{ClientId, Nick}|Clients],
+                    NewClients = [{ClientId, Nick} | Clients],
                     ClientId ! {self(), {ok, Ref}},
                     loop(Ref, NewClients, MsgLog);
-                _ ->
+                % is taken, reject
+                true ->
                     ClientId ! {self(), {error, Nick, is_taken}},
                     loop(Ref, Clients, MsgLog)
             end;
