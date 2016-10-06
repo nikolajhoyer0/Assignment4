@@ -31,9 +31,10 @@
 % start() for staring an ERC server. Returns {ok, Server} on success or
 % {error, Reason} if some error occurred.
 start() ->
+    Ref = make_ref(),
     NickDict = dict:new(),
     MsgLog = [],
-    try spawn(fun() -> loop(NickDict, MsgLog) end) of
+    try spawn(fun() -> loop(Ref, NickDict, MsgLog) end) of
         Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
@@ -115,36 +116,38 @@ async(Server, Request) ->
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-loop(NickDict, MsgLog) ->
+loop(Ref, NickDict, MsgLog) ->
     receive
         {From, {connect, Nick}} ->
             case dict:is_key(Nick, NickDict) of
                 false ->
-                    Ref = make_ref(),
-                    NewNickDict = dict:store(Nick, Ref, NickDict),
+                    NewNickDict = dict:store(Nick, From, NickDict),
                     From ! {self(), {ok, Ref}},
-                    loop(NewNickDict, MsgLog);
+                    loop(Ref, NewNickDict, MsgLog);
                 true ->
                     From ! {self(), {error, Nick, is_taken}},
-                    loop(NickDict, MsgLog)
+                    loop(Ref, NickDict, MsgLog)
             end;
 
         {From, {chat, Cont}} ->
-            loop(NickDict, NewMsgLog);
+            Fun = fun(Nick, To) -> To ! {Ref, {Nick, Cont}},
+            dict:map(Fun, NickDict),
+            NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 0, 41),
+            loop(Ref, NickDict, NewMsgLog);
 
         % {From, history} ->
-        %     loop(NickDict, MsgLog);
+        %     loop(Ref, NickDict, MsgLog);
         %
         % {From, {filter, Method, P}} ->
-        %     loop(NickDict, MsgLog);
+        %     loop(Ref, NickDict, MsgLog);
         %
         % {From, {plunk, Nick}} ->
-        %     loop(NickDict, MsgLog);
+        %     loop(Ref, NickDict, MsgLog);
         %
         % {From, {censor, Words}} ->
-        %     loop(NickDict, MsgLog);
+        %     loop(Ref, NickDict, MsgLog);
 
         {From, Other} ->
             From ! {self(), {error, Other}},
-            loop(NickDict, MsgLog)
+            loop(Ref, NickDict, MsgLog)
     end.
