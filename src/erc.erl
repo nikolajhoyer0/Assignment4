@@ -24,12 +24,9 @@
 % A message is a pair {Nick, Cont} where Nick is the nickname of the client who
 % sent the message, and Cont is the content of the message.
 
-
-
 %%%
 %%% API: A relay chat server.
 %%%
-
 
 % start() for staring an ERC server. Returns {ok, Server} on success or
 % {error, Reason} if some error occurred.
@@ -40,7 +37,6 @@ start() ->
         _:_ -> {error, unknown_reason}
     end.
 
-
 % connect(Server, Nick) for connecting to an ERC server, with the nickname Nick
 % which should be an atom. Returns {ok, Ref} and adds the client to the server
 % if no other client is connected using that nickname. Ref is a unique reference
@@ -50,20 +46,20 @@ start() ->
 % When a client is connected it should be ready to receive Erlang messages which
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
 % connect, and Msg is an ERC message, presumably for showing in some kind of UI.
-connect(Serve, Nick) -> true.
-
+connect(Server, Nick) ->
+  async(Server, {connect, Nick}).
 
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
 % non-blocking.
-chat(Server, Cont) -> true.
-
+chat(Server, Cont) ->
+  async(Server, {chat, Cont}).
 
 % history(Server) for getting the recent messages (capped at 42 messages) sent
 % at the server. Returns a list of messages ordered so that newest message is
 % the first element in the list and the last element is the oldest message.
-history(Server).
-
+history(Server) ->
+  blocking(Server, history).
 
 % filter(Server, Method, P) for filtering messages before they are sent to the
 % client. Where:
@@ -77,18 +73,25 @@ history(Server).
 %       installed for the client, meaning that both P and Q must return true
 %       for a message to be sent to the client. Otherwise, P should replace
 %       any previous filter (if any) installed for the client.
-filter(Sever, Method, P).
+filter(Sever, Method, P) ->
+  async(Server, {filter, Method, P}).
 
 
 % plunk(Server, Nick) add a filter for ignoring any message from Nick. Should
 % be implemented using filter, with the compose method.
-plunk(Server, Nick).
+plunk(Server, Nick) ->
+  async(Server, {plunk, Nick}).
 
 
 % censor(Server, Words) add a filter for ignoring messages containing any word
 % in Words, which should be a list of strings. Should be implemented using
 % filter with the compose method.
-censor(Server, Words).
+censor(Server, Words) ->
+  async(Server, {censor, Words}).
+
+%%%
+%%% Client functions
+%%%
 
 blocking(Pid, Request) ->
   Pid ! {self(), Request},
@@ -115,10 +118,25 @@ async(Pid, Request) ->
 loop() ->
   receive
     % From should be a pid
-    {From, Request} ->
+    {From, {connect, Nick}} ->
       % send back my own pid
       From ! {self(), ComputeResult(Request)},
       loop();
+
+    {From, {chat, Cont}} ->
+    loop();
+
+    {From, history} ->
+    loop();
+
+    {From, {filter, Method, P}} ->
+    loop();
+
+    {From, {plunk, Nick}} ->
+    loop();
+
+    {From, {censor, Words}} ->
+    loop();
 
     {From, Other} ->
       From ! {self(), {error, Other}},
