@@ -32,9 +32,9 @@
 % {error, Reason} if some error occurred.
 start() ->
     Ref = make_ref(),
-    Nicks = [],
+    Clients = [],
     MsgLog = [],
-    try spawn(fun() -> loop(Ref, Nicks, MsgLog) end) of
+    try spawn(fun() -> loop(Ref, Clients, MsgLog) end) of
         Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
@@ -112,44 +112,44 @@ async(Server, Request) ->
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-loop(Ref, Nicks, MsgLog) ->
+loop(Ref, Clients, MsgLog) ->
     receive
-        {From, {connect, Nick}} ->
-            case lists:keyfind(Nick, 2, Nicks) of
+        {ClientId, {connect, Nick}} ->
+            case lists:keyfind(Nick, 2, Clients) of
                 false ->
-                    NewNicks = [{From, Nick}|Nicks],
-                    From ! {self(), {ok, Ref}},
-                    loop(Ref, NewNicks, MsgLog);
+                    NewClients = [{ClientId, Nick}|Clients],
+                    ClientId ! {self(), {ok, Ref}},
+                    loop(Ref, NewClients, MsgLog);
                 _ ->
-                    From ! {self(), {error, Nick, is_taken}},
-                    loop(Ref, Nicks, MsgLog)
+                    ClientId ! {self(), {error, Nick, is_taken}},
+                    loop(Ref, Clients, MsgLog)
             end;
 
-        {From, {chat, Cont}} ->
-            case lists:keyfind(From, 1, Nicks) of
+        {ClientId, {chat, Cont}} ->
+            case lists:keyfind(ClientId, 1, Clients) of
                 false ->
-                    loop(Ref, Nicks, MsgLog);
-                {From, Nick} ->
+                    loop(Ref, Clients, MsgLog);
+                {ClientId, Nick} ->
                     NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
                     SendMsg = fun({To, Nick_}) -> To ! {Ref, {Nick_, Cont}} end,
-                    lists:map(SendMsg, Nicks),
-                    loop(Ref, Nicks, NewMsgLog)
+                    lists:map(SendMsg, Clients),
+                    loop(Ref, Clients, NewMsgLog)
             end;
 
-        {From, history} ->
-            From ! {self(), {ok, MsgLog}},
-            loop(Ref, Nicks, MsgLog);
+        {ClientId, history} ->
+            ClientId ! {self(), {ok, MsgLog}},
+            loop(Ref, Clients, MsgLog);
 
-        % {From, {filter, Method, P}} ->
-        %     loop(Ref, Nicks, MsgLog);
+        % {ClientId, {filter, Method, P}} ->
+        %     loop(Ref, Clients, MsgLog);
         %
-        % {From, {plunk, Nick}} ->
-        %     loop(Ref, Nicks, MsgLog);
+        % {ClientId, {plunk, Nick}} ->
+        %     loop(Ref, Clients, MsgLog);
         %
-        % {From, {censor, Words}} ->
-        %     loop(Ref, Nicks, MsgLog);
+        % {ClientId, {censor, Words}} ->
+        %     loop(Ref, Clients, MsgLog);
 
-        {From, Other} ->
-            From ! {self(), {error, Other}},
-            loop(Ref, Nicks, MsgLog)
+        {ClientId, Other} ->
+            ClientId ! {self(), {error, Other}},
+            loop(Ref, Clients, MsgLog)
     end.
