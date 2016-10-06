@@ -120,7 +120,7 @@ loop(Ref, NickDict, MsgLog) ->
     receive
         {From, {connect, Nick}} ->
             Pred = fun(_,N) -> N == Nick end,
-            FilteredNickDict = filter(Pred, NickDict)
+            FilteredNickDict = dict:filter(Pred, NickDict),
             case dict:is_empty(FilteredNickDict) of
                 % not taken
                 true ->
