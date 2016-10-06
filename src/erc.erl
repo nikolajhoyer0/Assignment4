@@ -32,9 +32,9 @@
 % {error, Reason} if some error occurred.
 start() ->
     NickDict = dict:new(),
-    MsgLog =  list:new(),
+    MsgLog = [],
     try spawn(fun() -> loop(NickDict, MsgLog) end) of
-        Pid -> {ok, Pid}
+        Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
     end.
@@ -49,19 +49,19 @@ start() ->
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
 % connect, and Msg is an ERC message, presumably for showing in some kind of UI.
 connect(Server, Nick) ->
-  blocking(Server, {connect, Nick}).
+    blocking(Server, {connect, Nick}).
 
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
 % non-blocking.
 chat(Server, Cont) ->
-  async(Server, {chat, Cont}).
+    async(Server, {chat, Cont}).
 
 % history(Server) for getting the recent messages (capped at 42 messages) sent
 % at the server. Returns a list of messages ordered so that newest message is
 % the first element in the list and the last element is the oldest message.
 history(Server) ->
-  blocking(Server, history).
+    blocking(Server, history).
 
 % filter(Server, Method, P) for filtering messages before they are sent to the
 % client. Where:
@@ -75,69 +75,69 @@ history(Server) ->
 %       installed for the client, meaning that both P and Q must return true
 %       for a message to be sent to the client. Otherwise, P should replace
 %       any previous filter (if any) installed for the client.
-filter(Sever, Method, P) ->
-  async(Server, {filter, Method, P}).
-
+filter(Server, Method, P) ->
+    async(Server, {filter, Method, P}).
 
 % plunk(Server, Nick) add a filter for ignoring any message from Nick. Should
 % be implemented using filter, with the compose method.
 plunk(Server, Nick) ->
-  async(Server, {plunk, Nick}).
-
+    async(Server, {plunk, Nick}).
 
 % censor(Server, Words) add a filter for ignoring messages containing any word
 % in Words, which should be a list of strings. Should be implemented using
 % filter with the compose method.
 censor(Server, Words) ->
-  async(Server, {censor, Words}).
+    async(Server, {censor, Words}).
 
 
 
 %%%
 %%% COMMUNICATION PRIMITIVES
 %%%
-blocking(Pid, Request) ->
-  Pid ! {self(), Request},
-  receive
-    {Pid, Response} -> Response
-  end.
+blocking(Server, Request) ->
+    Server ! {self(), Request},
+    receive
+        {Server, Response} -> Response
+    end.
 
-async(Pid, Request) ->
-  Pid ! Request
+async(Server, Request) ->
+    Server ! Request.
 
 
 
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
-
-% make a reference
-make_ref()
-
 loop(NickDict, MsgLog) ->
-  receive
-    % From should be a pid
-    {From, {connect, Nick}} ->
-      % send back my own pid
-      From ! {self(), ComputeResult(Request)},
-      loop(NewNickDict, MsgLog);
+    receive
+        {From, {connect, Nick}} ->
+            case dict:is_key(Nick, NickDict) of
+                false ->
+                    Ref = make_ref(),
+                    NewNickDict = dict:store(Nick, Ref, NickDict),
+                    From ! {self(), {ok, Ref}},
+                    loop(NewNickDict, MsgLog);
+                true ->
+                    From ! {self(), {error, Nick, is_taken}},
+                    loop(NickDict, MsgLog)
+            end;
 
-    {From, {chat, Cont}} ->
-    loop(NickDict, NewMsgLog);
+        {From, {chat, Cont}} ->
+            loop(NickDict, NewMsgLog);
 
-    {From, history} ->
-    loop(NickDict, MsgLog);
+        % {From, history} ->
+        %     loop(NickDict, MsgLog);
+        %
+        % {From, {filter, Method, P}} ->
+        %     loop(NickDict, MsgLog);
+        %
+        % {From, {plunk, Nick}} ->
+        %     loop(NickDict, MsgLog);
+        %
+        % {From, {censor, Words}} ->
+        %     loop(NickDict, MsgLog);
 
-    {From, {filter, Method, P}} ->
-    loop();
-
-    {From, {plunk, Nick}} ->
-    loop();
-
-    {From, {censor, Words}} ->
-    loop();
-
-    {From, Other} ->
-      From ! {self(), {error, Other}},
-      loop(NickDict, MsgLog)
-  end.
+        {From, Other} ->
+            From ! {self(), {error, Other}},
+            loop(NickDict, MsgLog)
+    end.
