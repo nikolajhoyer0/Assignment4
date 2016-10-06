@@ -33,7 +33,12 @@
 
 % start() for staring an ERC server. Returns {ok, Server} on success or
 % {error, Reason} if some error occurred.
-start() -> spawn(fun() -> loop()).
+start() ->
+    try spawn(fun() -> loop() end) of
+        Pid -> {ok, Pid}
+    catch
+        _:_ -> {error, unknown_reason}
+    end.
 
 
 % connect(Server, Nick) for connecting to an ERC server, with the nickname Nick
@@ -90,6 +95,14 @@ censor(Server, Words).
 %%%
 %%% INTERNAL IMPLEMENTATION
 %%%
+
+
+
+
+
+
+
+
 
 % Just a general template right now... does not do anything really.
 loop() ->
