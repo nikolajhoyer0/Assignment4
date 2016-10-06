@@ -37,7 +37,7 @@ start() ->
     try spawn(fun() -> loop() end) of
         Pid -> {ok, Pid}
     catch
-        _:_ -> {error, unknown_reason}
+        _:_ -> {error, this_should_not_happen}
     end.
 
 
@@ -90,6 +90,11 @@ plunk(Server, Nick).
 % filter with the compose method.
 censor(Server, Words).
 
+
+
+%%%
+%%% COMMUNICATION PRIMITIVES
+%%%
 blocking(Pid, Request) ->
   Pid ! {self(), Request},
   receive
@@ -99,19 +104,12 @@ blocking(Pid, Request) ->
 async(Pid, Request) ->
   Pid ! Request
 
+
+
 %%%
-%%% INTERNAL IMPLEMENTATION
+%%% SERVER'S INTERNAL IMPLEMENTATION
 %%%
 
-
-
-
-
-
-
-
-
-% Just a general template right now... does not do anything really.
 loop() ->
   receive
     % From should be a pid
