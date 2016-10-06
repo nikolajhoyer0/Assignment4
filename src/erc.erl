@@ -51,7 +51,9 @@ start() ->
 connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
     blocking(Server, {connect, Nick});
 
-connect(_, _) -> throw('connect: bad input').
+connect(Server, _) when is_pid(Server) -> throw('connect: bad Nick');
+connect(_, Nick) when is_atom(Nick)    -> throw('connect: bad Server');
+connect(_, _)                          -> throw('connect: bad inputs').
 
 
 % When a client is connected it should be ready to receive Erlang messages which
@@ -102,6 +104,8 @@ plunk(Server, Nick) ->
 censor(Server, Words) ->
     async(Server, {censor, Words}).
 
+
+
 %%%
 %%% COMMUNICATION PRIMITIVES
 %%%
@@ -113,6 +117,8 @@ blocking(Server, Request) ->
 
 async(Server, Request) ->
     Server ! {self(), Request}.
+
+
 
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
