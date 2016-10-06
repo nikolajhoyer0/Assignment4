@@ -31,10 +31,10 @@
 % start() for staring an ERC server. Returns {ok, Server} on success or
 % {error, Reason} if some error occurred.
 start() ->
-    NickDict = dict:new().
-    MsgLog = list:new().
+    NickDict = dict:new(),
+    MsgLog = [],
     try spawn(fun() -> loop(NickDict, MsgLog) end) of
-        Pid -> {ok, Pid}
+        Server -> {ok, Server}
     catch
         _:_ -> {error, this_should_not_happen}
     end.
@@ -75,7 +75,7 @@ history(Server) ->
 %       installed for the client, meaning that both P and Q must return true
 %       for a message to be sent to the client. Otherwise, P should replace
 %       any previous filter (if any) installed for the client.
-filter(Sever, Method, P) ->
+filter(Server, Method, P) ->
     async(Server, {filter, Method, P}).
 
 % plunk(Server, Nick) add a filter for ignoring any message from Nick. Should
@@ -92,14 +92,14 @@ censor(Server, Words) ->
 %%%
 %%% COMMUNICATION PRIMITIVES
 %%%
-blocking(Pid, Request) ->
-    Pid ! {self(), Request},
+blocking(Server, Request) ->
+    Server ! {self(), Request},
     receive
-        {Pid, Response} -> Response
+        {Server, Response} -> Response
     end.
 
-async(Pid, Request) ->
-    Pid ! Request
+async(Server, Request) ->
+    Server ! Request.
 
 %%%
 %%% SERVER'S INTERNAL IMPLEMENTATION
@@ -118,9 +118,9 @@ loop(NickDict, MsgLog) ->
                     loop(NickDict, MsgLog)
             end;
 
-        % {From, {chat, Cont}} ->
-        %     loop(NickDict, NewMsgLog);
-        %
+        {From, {chat, Cont}} ->
+            loop(NickDict, NewMsgLog);
+
         % {From, history} ->
         %     loop(NickDict, MsgLog);
         %
