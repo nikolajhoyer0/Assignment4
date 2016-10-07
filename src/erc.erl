@@ -63,10 +63,21 @@ connect(_, _)                          -> throw('connect: bad inputs').
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
 % non-blocking.
-chat(Server, Cont) when is_list(Cont) ->
-    async(Server, {chat, Cont});
+chat(Server, Cont) when is_pid(Server)
+                   andalso is_list(Cont)
+                   andalso length(Cont) > 0 ->
+    % check that the message content is withing the valid range of extended
+    % ASCII characters, i.e., 0 to 255.
+    IsExtendedASCII = fun(Elem) ->
+        erlang:is_integer(Elem) andalso (Elem > -1) andalso (Elem < 256) end,
+    case lists:all(IsExtendedASCII, Cont) of
+        true  -> async(Server, {chat, Cont});
+        false -> throw('chat: message contains an invalid ASCII character')
+    end;
 
-chat(_, _) -> throw('chat: bad input').
+chat(Server, _) when is_pid(Server)  -> throw('chat: bad message');
+chat(_, Cont) when is_list(Cont)     -> throw('chat: bad Server');
+chat(_, _)                           -> throw('chat: bad inputs').
 
 
 % history(Server) for getting the recent messages (capped at 42 messages) sent
@@ -153,7 +164,7 @@ loop(Ref, Clients, Filters, MsgLog) ->
             end;
 
         {ClientId, history} ->
-            ClientId ! {self(), {ok, MsgLog}},
+            ClientId ! {self(), MsgLog},
             loop(Ref, Clients, Filters, MsgLog);
 
         {ClientId, {filter, Method, P}} ->
@@ -169,7 +180,7 @@ loop(Ref, Clients, Filters, MsgLog) ->
                             NewPs = [P];
                         _ ->
                             NewPs = Ps,
-                            ClientId ! {self(), {error, 'filter: method invalid'}}
+                            ClientId ! {self(), {error, 'filter: invalid method'}}
                     end,
                     NewFilters = lists:keyreplace(ClientId, 1, Filters, {ClientId, NewPs}),
                     ClientId ! {self(), {ok, 'filter: added for existing client'}};
