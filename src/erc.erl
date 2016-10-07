@@ -194,9 +194,19 @@ loop(Ref, Clients, Filters, MsgLog) ->
             ClientId ! {self(), {ok, Filters}},
             loop(Ref, Clients, Filters, MsgLog);
 
+
+
+% plunk(Server, Nick) add a filter for ignoring any message from Nick. Should
+% be implemented using filter, with the compose method.
+
         % {ClientId, {plunk, Nick}} ->
-        %     loop(Ref, Clients, Filters, MsgLog);
-        %
+
+        %      loop(Ref, Clients, Filters, MsgLog);
+
+
+
+
+
         % {ClientId, {censor, Words}} ->
         %     loop(Ref, Clients, Filters, MsgLog);
 

@@ -32,7 +32,8 @@ connect_test_() ->
      ?_assertThrow('connect: bad Server', erc:connect(11, andrew)),
      ?_assertEqual({ok, TestRef}, erc:connect(S, batman)),
      ?_assertEqual({ok, TestRef}, erc:connect(S, superman)),
-     ?_assertEqual({ok, TestRef}, erc:connect(S, ironman))
+     ?_assertEqual({ok, TestRef}, erc:connect(S, ironman)),
+     ?_assertEqual({error, spiderman, is_taken}, erc:connect(S, spiderman))
     ].
 
 
@@ -59,3 +60,68 @@ chat_test_() ->
     ].
 
 
+chat2_test_() ->
+    MainId = self(),
+    {_, Server} = erc:start(),
+    _User1 = spawn(fun() -> user(Server, MainId, spiderman, 1) end),
+    _User2 = spawn(fun() -> user(Server, MainId, batman, 1) end),
+
+    io:fwrite("Hello from chat2_test!~n", []),
+
+    % need a done message from users
+    receive
+        {_User1, done} -> ok
+    end,
+
+    io:fwrite("chat2_test: user1 done!~n", []),
+
+    receive
+        {_User2, done} -> ok
+    end,
+
+    io:fwrite("chat2_test: user1 done!~n", []),
+
+    % check state of the server
+    Hist = lists:sort(erc:history(Server)),
+    io:fwrite("~62p~n", [Hist]),
+    [?_assert(Hist == [ {batman,"batman sent msg no. 0"},
+                        {batman,"batman sent msg no. 1"},
+                        {spiderman,"spiderman sent msg no. 0"},
+                        {spiderman,"spiderman sent msg no. 1"}
+                      ])
+    ].
+
+
+user(Server, MainId, Nick, Count) ->
+    Me = self(),
+    io:fwrite("Hello from user: ~p~n", [Nick]),
+    % send a connect request to the server
+    Server ! {Me, {connect, Nick}},
+    io:fwrite("Sent connect request: ~p~n", [Nick]),
+    receive
+        {Server, {ok, Ref}} when is_reference(Ref) ->
+            io:fwrite("Connect request approved: ~p~n", [Nick]),
+            chat_it_up(Server, MainId, Nick, Count);
+        {Server, {error, Nick, is_taken}}  -> ok;
+        Reply ->
+            io:fwrite("Connect request denied: ~p~n", [Reply])
+    end.
+
+
+chat_it_up(Server, MainId, Nick, Count) when is_integer(Count)
+                                        andalso (Count > -1) ->
+    io:fwrite("Hello from chat_it_up: ~p~n", [Nick]),
+    % construct a unique message
+    Msg = erlang:atom_to_list(Nick)
+          ++ " sent msg no. "
+          ++ integer_to_list(Count),
+    % send a chat request ot the server
+    io:fwrite("Hello from chat_it_up: ~p~n", [Nick]),
+    Server ! {self(), {chat, Msg}},
+    io:fwrite("Chat request approved: ~p~n", [Nick]),
+    case Count of
+      0 -> io:fwrite("Chat done: ~p~n", [Nick]),
+           MainId ! {self(), done};
+      _ -> io:fwrite("Chatting again: ~p~n", [Nick]),
+           chat_it_up(Server, MainId, Nick, Count - 1)
+    end.
