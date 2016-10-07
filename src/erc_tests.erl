@@ -2,7 +2,9 @@
 -include_lib("eunit/include/eunit.hrl").  % EUnit unit testing framework
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % check that the API functions are exported properly.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 export_test_() ->
     [?_assert(erlang:function_exported(erc, start, 0)),
      ?_assert(erlang:function_exported(erc, connect, 2)),
@@ -14,12 +16,16 @@ export_test_() ->
     ].
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % check the expected behaviour of erc:start()
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_test_() ->
     [?_assertMatch({ok, Pid} when is_pid(Pid), erc:start())].
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % check the expected behaviour of erc:connect(Server, Nick)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 connect_test_() ->
     {_, S} = erc:start(),
     {_, TestRef} = erc:connect(S, spiderman),
@@ -37,7 +43,9 @@ connect_test_() ->
     ].
 
 
-% check the expected behaviour of erc:chat(Server, Cont).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% check the expected behaviour of erc:chat(Server, Cont) for a single user.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 chat_test_() ->
     {_, S} = erc:start(),
     erc:connect(S, spiderman),
@@ -96,6 +104,9 @@ chat_test_() ->
     ].
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% check the expected behaviour of erc:chat(Server, Cont) for multiple users.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 chat2_test_() ->
     MainId = self(),
     {_, Server} = erc:start(),
@@ -177,3 +188,43 @@ chat_it_up(Server, MainId, Nick, Count) when is_integer(Count)
       _ -> io:fwrite("Chatting again: ~p~n", [Nick]),
            chat_it_up(Server, MainId, Nick, Count - 1)
     end.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% check the expected behaviour of erc:filter(Server, Nick)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+filter_test_() ->
+    {_, S} = erc:start(),
+    erc:connect(S, spiderman),
+
+    F0 = erc:get_filters(S),
+    io:fwrite("~62p~n", [F0]),
+
+    P1 = fun() -> true end,
+    P2 = fun() -> false end,
+    P3 = fun() -> true andalso false end,
+    P4 = fun() -> true end,
+
+    erc:filter(S, compose, P1),
+    F1 = erc:get_filters(S),
+    io:fwrite("~62p~n", [F1]),
+
+    erc:filter(S, compose, P2),
+    F2 = erc:get_filters(S),
+    io:fwrite("~62p~n", [F2]),
+
+    erc:filter(S, replace, P3),
+    F3 = erc:get_filters(S),
+    io:fwrite("~62p~n", [F3]),
+
+    erc:filter(S, compose, P4),
+    F4 = erc:get_filters(S),
+    io:fwrite("~62p~n", [F4]),
+
+    % tests
+    [?_assert(F0 == {ok, []}),
+     ?_assert(F1 == {ok, [{self(), [P1]     } ] } ),
+     ?_assert(F2 == {ok, [{self(), [P2, P1] } ] } ),
+     ?_assert(F3 == {ok, [{self(), [P3]     } ] } ),
+     ?_assert(F4 == {ok, [{self(), [P4, P3] } ] } )
+    ].
