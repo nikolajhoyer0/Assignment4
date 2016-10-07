@@ -63,31 +63,47 @@ chat_test_() ->
 chat2_test_() ->
     MainId = self(),
     {_, Server} = erc:start(),
-    _User1 = spawn(fun() -> user(Server, MainId, spiderman, 1) end),
-    _User2 = spawn(fun() -> user(Server, MainId, batman, 1) end),
-
-    io:fwrite("Hello from chat2_test!~n", []),
-
-    % need a done message from users
+    _User1 = spawn(fun() -> user(Server, MainId, spiderman, 13) end),
+    _User2 = spawn(fun() -> user(Server, MainId, batman, 11) end),
+    % io:fwrite("Hello from chat2_test!~n", []),
     receive
         {_User1, done} -> ok
     end,
-
-    io:fwrite("chat2_test: user1 done!~n", []),
-
+    % io:fwrite("chat2_test: user1 done!~n", []),
     receive
         {_User2, done} -> ok
     end,
-
-    io:fwrite("chat2_test: user1 done!~n", []),
-
-    % check state of the server
+    % io:fwrite("chat2_test: user1 done!~n", []),
+    % check state of the server, we cannot know what order the messages will
+    % arrive in, but we can check that they all arrived!
     Hist = lists:sort(erc:history(Server)),
     io:fwrite("~62p~n", [Hist]),
     [?_assert(Hist == [ {batman,"batman sent msg no. 0"},
                         {batman,"batman sent msg no. 1"},
+                        {batman,"batman sent msg no. 10"},
+                        {batman,"batman sent msg no. 11"},
+                        {batman,"batman sent msg no. 2"},
+                        {batman,"batman sent msg no. 3"},
+                        {batman,"batman sent msg no. 4"},
+                        {batman,"batman sent msg no. 5"},
+                        {batman,"batman sent msg no. 6"},
+                        {batman,"batman sent msg no. 7"},
+                        {batman,"batman sent msg no. 8"},
+                        {batman,"batman sent msg no. 9"},
                         {spiderman,"spiderman sent msg no. 0"},
-                        {spiderman,"spiderman sent msg no. 1"}
+                        {spiderman,"spiderman sent msg no. 1"},
+                        {spiderman,"spiderman sent msg no. 10"},
+                        {spiderman,"spiderman sent msg no. 11"},
+                        {spiderman,"spiderman sent msg no. 12"},
+                        {spiderman,"spiderman sent msg no. 13"},
+                        {spiderman,"spiderman sent msg no. 2"},
+                        {spiderman,"spiderman sent msg no. 3"},
+                        {spiderman,"spiderman sent msg no. 4"},
+                        {spiderman,"spiderman sent msg no. 5"},
+                        {spiderman,"spiderman sent msg no. 6"},
+                        {spiderman,"spiderman sent msg no. 7"},
+                        {spiderman,"spiderman sent msg no. 8"},
+                        {spiderman,"spiderman sent msg no. 9"}
                       ])
     ].
 
