@@ -41,12 +41,47 @@ connect_test_() ->
 chat_test_() ->
     {_, S} = erc:start(),
     erc:connect(S, spiderman),
+
     erc:chat(S, " "),
     Hist1 = erc:history(S),
+
     erc:chat(S, "With great power..."),
     Hist2 = erc:history(S),
+
     erc:chat(S, "comes great responsibility"),
     Hist3 = erc:history(S),
+
+    erc:chat(S, " 1"), erc:chat(S, " 2"), erc:chat(S, " 3"), erc:chat(S, " 4"),
+    erc:chat(S, " 5"), erc:chat(S, " 6"), erc:chat(S, " 7"), erc:chat(S, " 8"),
+    erc:chat(S, " 9"), erc:chat(S, "10"), erc:chat(S, "11"), erc:chat(S, "12"),
+    erc:chat(S, "13"), erc:chat(S, "14"), erc:chat(S, "15"), erc:chat(S, "16"),
+    erc:chat(S, "17"), erc:chat(S, "18"), erc:chat(S, "19"), erc:chat(S, "20"),
+    erc:chat(S, "21"), erc:chat(S, "22"), erc:chat(S, "23"), erc:chat(S, "24"),
+    erc:chat(S, "25"), erc:chat(S, "26"), erc:chat(S, "27"), erc:chat(S, "28"),
+    erc:chat(S, "29"), erc:chat(S, "30"), erc:chat(S, "31"), erc:chat(S, "32"),
+    erc:chat(S, "33"), erc:chat(S, "34"), erc:chat(S, "35"), erc:chat(S, "36"),
+    erc:chat(S, "37"), erc:chat(S, "38"), erc:chat(S, "39"), erc:chat(S, "40"),
+    erc:chat(S, "41"), erc:chat(S, "42"), erc:chat(S, "43"), erc:chat(S, "44"),
+
+    Hist4 = erc:history(S),
+
+    % Expected result is to reverse and take first 42 messages
+    Expect4 = lists:sublist(
+                  lists:reverse([
+    {spiderman, " 1"}, {spiderman, " 2"}, {spiderman, " 3"}, {spiderman, " 4"},
+    {spiderman, " 5"}, {spiderman, " 6"}, {spiderman, " 7"}, {spiderman, " 8"},
+    {spiderman, " 9"}, {spiderman, "10"}, {spiderman, "11"}, {spiderman, "12"},
+    {spiderman, "13"}, {spiderman, "14"}, {spiderman, "15"}, {spiderman, "16"},
+    {spiderman, "17"}, {spiderman, "18"}, {spiderman, "19"}, {spiderman, "20"},
+    {spiderman, "21"}, {spiderman, "22"}, {spiderman, "23"}, {spiderman, "24"},
+    {spiderman, "25"}, {spiderman, "26"}, {spiderman, "27"}, {spiderman, "28"},
+    {spiderman, "29"}, {spiderman, "30"}, {spiderman, "31"}, {spiderman, "32"},
+    {spiderman, "33"}, {spiderman, "34"}, {spiderman, "35"}, {spiderman, "36"},
+    {spiderman, "37"}, {spiderman, "38"}, {spiderman, "39"}, {spiderman, "40"},
+    {spiderman, "41"}, {spiderman, "42"}, {spiderman, "43"}, {spiderman, "44"}
+                                ]),42),
+
+    % tests
     [?_assert(Hist1 == [ {spiderman, " "}
                        ]),
      ?_assert(Hist2 == [ {spiderman, "With great power..."},
@@ -56,6 +91,7 @@ chat_test_() ->
                          {spiderman, "With great power..."},
                          {spiderman, " "}
                        ]),
+     ?_assert(Hist4 == Expect4),
      ?_assertThrow('chat: bad message', erc:chat(S, ""))
     ].
 
