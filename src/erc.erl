@@ -194,15 +194,20 @@ connect_logic(Client, Clients, Nick, Ref) ->
 chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
     % Check if the sender exists as a connected Client
     case lists:keyfind(Client, 1, Clients) of
-        % Abort
+        % Abort if the user does not exist
         false          -> NewMsgLog = MsgLog;
-        % Add the message to the log and send the message to clients that are
-        % not filtered out.
         {Client, Nick} ->
+            % Add the message to the log
             NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
+            % A function for sending a single message to a client
             SendMsg = fun({To, Nick_}) ->
+                % Fetch the filters for the client, if any
                 case lists:keyfind(Client, 1, Filters) of
-                    false      -> To ! {Ref, {Nick_, Cont}};
+                    % No filter exists, just send the message
+                    false ->
+                        To ! {Ref, {Nick_, Cont}};
+                    % One or more filters found. If any predicate returns
+                    % false, do not send the message. Otherwise send it.
                     {_, Preds} ->
                         Filtered = fun(Pred, Acc) ->
                             Pred(Nick_, Cont) and Acc
@@ -213,6 +218,7 @@ chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
                         end
                 end
             end,
+            % Send messages to all connected clients
             lists:map(SendMsg, Clients)
     end,
     NewMsgLog.
@@ -222,9 +228,8 @@ filter_logic(Client, Filters, Method, P) ->
         % client has no filters, add to list
         false ->
             NewFilters = [ {Client, [P] } | Filters ];
-        % client has filters, check method
+        % client has filters, check method and add new filter accordingly
         {Client, Ps} ->
-            % we already checked the validity of the Method input in the API
             case Method of
                 compose -> NewPs = [P | Ps];
                 replace -> NewPs = [P]
