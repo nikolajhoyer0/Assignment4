@@ -4,10 +4,8 @@
          chat/2,
          history/1,
          filter/3,
-         get_filters/1,
          plunk/2,
          censor/2]).
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % API: A relay chat server.
@@ -18,7 +16,6 @@
 % Method :
 % Pred   :
 % Words  :
-
 
 % For staring an ERC server.
 %   success => {ok, Server}
@@ -34,7 +31,6 @@ start() ->
         _:_ -> {error, this_should_not_happen}
     end.
 
-
 % connect(Server, Nick) for connecting to an ERC server, with the nickname Nick
 % which should be an atom. Returns {ok, Ref} and adds the client to the server
 % if no other client is connected using that nickname. Ref is a unique reference
@@ -46,7 +42,6 @@ connect(Server, Nick) when is_pid(Server) andalso is_atom(Nick) ->
 connect(Server, _) when is_pid(Server) -> throw('connect: bad Nick');
 connect(_, Nick) when is_atom(Nick)    -> throw('connect: bad Server');
 connect(_, _)                          -> throw('connect: bad inputs').
-
 
 % When a client is connected it should be ready to receive Erlang messages which
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
@@ -101,28 +96,27 @@ filter(Server, Method, Pred) when    is_pid(Server)
 
 filter(_, _, _) -> throw('filter: invalid inputs').
 
-
-get_filters(Server) ->
-    blocking(Server, get_filters).
-
 % Adds a filter for ignoring any message from a Nick.
 plunk(Server, Nick) ->
-    %% Implement this logic here!!!!
-
-    Pred = fun() -> true  %% THIS IS WHRE THE MAGIC SHOULD HAPPEN!
-                    end,
+    Pred = fun({PredNick, _}) ->
+               case PredNick of
+                   Nick -> false;
+                   _    -> true
+               end
+           end,
     blocking(Server, {filter, compose, Pred}).
 
 % censor(Server, Words) add a filter for ignoring messages containing any word
 % in Words, which should be a list of strings. Should be implemented using
 % filter with the compose method.
 censor(Server, Words) ->
-    %% DO THE SAME HERE AS WITH PLUNK!!!
-    Pred = fun() -> true   %% THIS IS WHRE THE MAGIC SHOULD HAPPEN!
-                    end,
+    Pred = fun({_, Cont}) ->
+        MemberIn = fun(Word) ->
+            lists:member(Word, string:tokens(Cont, " "))
+        end,
+        lists:any(MemberIn, Words)
+    end,
     blocking(Server, {filter, compose, Pred}).
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % COMMUNICATION PRIMITIVES
@@ -135,8 +129,6 @@ blocking(Server, Request) ->
 
 async(Server, Request) ->
     Server ! {self(), Request}.
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SERVER'S INTERNAL IMPLEMENTATION
@@ -151,80 +143,67 @@ async(Server, Request) ->
 loop(Ref, Clients, Filters, MsgLog) ->
     receive
         {Client, {connect, Nick}} ->
-            % check if the Nick is already taken by another user
-            NickTaken = fun({_, N}) -> N == Nick end,
-            case lists:any(NickTaken, Clients) of
-                % is available, update Client list with new Nick
-                false ->
-                    NewClients = [{Client, Nick} | Clients],
-                    Client ! {self(), {ok, Ref}},
-                    loop(Ref, NewClients, Filters, MsgLog);
-                % is taken, reject
-                true ->
-                    Client ! {self(), {error, Nick, is_taken}},
-                    loop(Ref, Clients, Filters, MsgLog)
-            end;
+            NewClients = connect_logic(Client, Clients, Nick, Ref),
+            loop(Ref, NewClients, Filters, MsgLog);
 
         {Client, {chat, Cont}} ->
-            case lists:keyfind(Client, 1, Clients) of
-                false ->
-                    loop(Ref, Clients, Filters, MsgLog);
-                {Client, Nick} ->
-                    NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
-                    SendMsg = fun({To, Nick_}) ->
-                        To ! {Ref, {Nick_, Cont}} end,
-                    lists:map(SendMsg, Clients),
-                    loop(Ref, Clients, Filters, NewMsgLog)
-            end;
+            NewMsgLog = chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog),
+            loop(Ref, Clients, Filters, NewMsgLog);
 
         {Client, history} ->
             Client ! {self(), MsgLog},
             loop(Ref, Clients, Filters, MsgLog);
 
-
         {Client, {filter, Method, P}} ->
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % TOOK THIS LOGIC OUT TO MAKE THE LOOP CODE
-        % A BIT CLEANER.
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            NewFilters = filter_logic(Filters, Client, Method, P),
+            NewFilters = filter_logic(Client, Filters, Method, P),
             Client ! {self(), {ok, updated_filter}},
             loop(Ref, Clients, NewFilters, MsgLog);
-
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % TEST MODULE HANDLES THIS NOW
-        % SEE THE PRINT STATEMENTS!!!
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % {Client, get_filters} ->
-        %     Client ! {self(), {ok, Filters}},
-        %     loop(Ref, Clients, Filters, MsgLog);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % IMPLEMENT THESE AT THE API LEVEL AND
-        % CALL filter AT THE SERVER LEVEL.
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % {Client, {plunk, Nick}} ->
-        %      loop(Ref, Clients, Filters, MsgLog);
-        % {Client, {censor, Words}} ->
-        %     loop(Ref, Clients, Filters, MsgLog);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
         {Client, Other} ->
             Client ! {self(), {error, Other}},
             loop(Ref, Clients, Filters, MsgLog)
     end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SERVER LOGIC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-filter_logic(Filters,   Client, Method, P) ->
+connect_logic(Client, Clients, Nick, Ref) ->
+    % check if the Nick is already taken by another user
+    NickTaken = fun({_, N}) -> N == Nick end,
+    case lists:any(NickTaken, Clients) of
+        % is available, update Client list with new Nick
+        false ->
+            NewClients = [{Client, Nick} | Clients],
+            Client ! {self(), {ok, Ref}};
+        % is taken, reject
+        true ->
+            NewClients = Clients,
+            Client ! {self(), {error, Nick, is_taken}}
+    end,
+    NewClients.
+
+chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
+    case lists:keyfind(Client, 1, Clients) of
+        false ->
+            NewMsgLog = MsgLog;
+        {Client, Nick} ->
+            NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
+            SendMsg = fun({To, Nick_}) ->
+                To ! {Ref, {Nick_, Cont}} end,
+            lists:map(SendMsg, Clients)
+    end,
+    NewMsgLog.
+
+filter_logic(Client, Filters, Method, P) ->
     case lists:keyfind(Client, 1, Filters) of
         % client has no filters, add to list
         false ->
             NewFilters = [ {Client, [P] } | Filters ];
         % client has filters, check method
         {Client, Ps} ->
-            case Method of
             % we already checked the validity of the Method input in the API
+            case Method of
                 compose ->
                     NewPs = [P | Ps];
                 replace ->
