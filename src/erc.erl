@@ -101,26 +101,36 @@ get_filters(Server) ->
     blocking(Server, get_filters).
 
 % Adds a filter for ignoring any message from a Nick.
-plunk(Server, Nick) ->
+plunk(Server, Nick) when    is_pid(Server)
+                    andalso is_atom(Nick) ->
     Pred = fun({PredNick, _}) ->
                case PredNick of
                    Nick -> false;
                    _    -> true
                end
            end,
-    blocking(Server, {filter, compose, Pred}).
+    blocking(Server, {filter, compose, Pred});
+
+plunk(Server, _) when is_pid(Server)  -> throw('chat: bad Nick');
+plunk(_, Nick) when is_atom(Nick)     -> throw('chat: bad Server');
+plunk(_, _)                           -> throw('chat: bad inputs').
 
 % censor(Server, Words) add a filter for ignoring messages containing any word
 % in Words, which should be a list of strings. Should be implemented using
 % filter with the compose method.
-censor(Server, Words) ->
+censor(Server, Words) when    is_pid(Server)
+                      andalso is_list(Words) ->
     Pred = fun({_, Cont}) ->
         MemberIn = fun(Word) ->
             lists:member(Word, string:tokens(Cont, " "))
         end,
-        lists:any(MemberIn, Words)
+        not lists:any(MemberIn, Words)
     end,
-    blocking(Server, {filter, compose, Pred}).
+    blocking(Server, {filter, compose, Pred});
+
+censor(Server, _) when is_pid(Server) -> throw('chat: Words must be in a list');
+censor(_, Words) when is_list(Words)  -> throw('chat: bad Server');
+censor(_, _)                          -> throw('chat: bad inputs').
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % COMMUNICATION PRIMITIVES
@@ -192,25 +202,30 @@ connect_logic(Client, Clients, Nick, Ref) ->
     NewClients.
 
 chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
+
     % Check if the sender exists as a connected Client
     case lists:keyfind(Client, 1, Clients) of
+
         % Abort if the user does not exist
-        false          -> NewMsgLog = MsgLog;
+        false          ->
+            NewMsgLog = MsgLog;
         {Client, Nick} ->
             % Add the message to the log
             NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
+
             % A function for sending a single message to a client
             SendMsg = fun({To, Nick_}) ->
-                % Fetch the filters for the client, if any
                 case lists:keyfind(Client, 1, Filters) of
+
                     % No filter exists, just send the message
                     false ->
                         To ! {Ref, {Nick_, Cont}};
+
                     % One or more filters found. If any predicate returns
                     % false, do not send the message. Otherwise send it.
                     {_, Preds} ->
                         Filtered = fun(Pred, Acc) ->
-                            Pred(Nick_, Cont) and Acc
+                            Pred({Nick_, Cont}) and Acc
                         end,
                         case lists:foldl(Filtered, true, Preds) of
                             false -> ok;
@@ -218,6 +233,7 @@ chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
                         end
                 end
             end,
+
             % Send messages to all connected clients
             lists:map(SendMsg, Clients)
     end,
