@@ -4,6 +4,7 @@
          chat/2,
          history/1,
          filter/3,
+         get_filters/1,
          plunk/2,
          censor/2]).
 
@@ -96,6 +97,9 @@ filter(Server, Method, Pred) when    is_pid(Server)
 
 filter(_, _, _) -> throw('filter: invalid inputs').
 
+get_filters(Server) ->
+    blocking(Server, get_filters).
+
 % Adds a filter for ignoring any message from a Nick.
 plunk(Server, Nick) ->
     Pred = fun({PredNick, _}) ->
@@ -159,6 +163,10 @@ loop(Ref, Clients, Filters, MsgLog) ->
             Client ! {self(), {ok, updated_filter}},
             loop(Ref, Clients, NewFilters, MsgLog);
 
+        {Client, get_filters} ->
+            Client ! {self(), {ok, Filters}},
+            loop(Ref, Clients, Filters, MsgLog);
+
         {Client, Other} ->
             Client ! {self(), {error, Other}},
             loop(Ref, Clients, Filters, MsgLog)
@@ -184,13 +192,27 @@ connect_logic(Client, Clients, Nick, Ref) ->
     NewClients.
 
 chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
+    % Check if the sender exists as a connected Client
     case lists:keyfind(Client, 1, Clients) of
-        false ->
-            NewMsgLog = MsgLog;
+        % Abort
+        false          -> NewMsgLog = MsgLog;
+        % Add the message to the log and send the message to clients that are
+        % not filtered out.
         {Client, Nick} ->
             NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
             SendMsg = fun({To, Nick_}) ->
-                To ! {Ref, {Nick_, Cont}} end,
+                case lists:keyfind(Client, 1, Filters) of
+                    false      -> To ! {Ref, {Nick_, Cont}};
+                    {_, Preds} ->
+                        Filtered = fun(Pred, Acc) ->
+                            Pred(Nick_, Cont) and Acc
+                        end,
+                        case lists:foldl(Filtered, true, Preds) of
+                            false -> ok;
+                            true  -> To ! {Ref, {Nick_, Cont}}
+                        end
+                end
+            end,
             lists:map(SendMsg, Clients)
     end,
     NewMsgLog.
@@ -204,10 +226,8 @@ filter_logic(Client, Filters, Method, P) ->
         {Client, Ps} ->
             % we already checked the validity of the Method input in the API
             case Method of
-                compose ->
-                    NewPs = [P | Ps];
-                replace ->
-                    NewPs = [P]
+                compose -> NewPs = [P | Ps];
+                replace -> NewPs = [P]
             end,
             NewFilters = lists:keyreplace(Client, 1, Filters, {Client, NewPs})
     end,
