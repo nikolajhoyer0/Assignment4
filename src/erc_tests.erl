@@ -200,10 +200,10 @@ filter_test_() ->
     F0 = erc:get_filters(S),
     io:fwrite("~62p~n", [F0]),
 
-    P1 = fun() -> true end,
-    P2 = fun() -> false end,
-    P3 = fun() -> true andalso false end,
-    P4 = fun() -> true end,
+    P1 = fun({atom, "String"}) -> true end,
+    P2 = fun({atom, "String"}) -> false end,
+    P3 = fun({atom, "String"}) -> true andalso false end,
+    P4 = fun({atom, "String"}) -> true end,
 
     erc:filter(S, compose, P1),
     F1 = erc:get_filters(S),

@@ -89,13 +89,21 @@ history(Server) ->
 filter(Server, Method, Pred) when    is_pid(Server)
                              andalso is_function(Pred)
                              andalso is_atom(Method) ->
-    case (Method == compose orelse Method == replace) of
-        true ->
-            blocking(Server, {filter, Method, Pred});
+
+    try Pred({atom, "String"}) of
+        true  -> ok;
+        false -> ok;
+        _     -> throw('filter: invalid predicate')
+    catch _:_ -> throw('filter: invalid predicate')
+    end,
+
+    case Method == compose orelse Method == replace of
+        true  -> blocking(Server, {filter, Method, Pred});
         false -> throw('filter: invalid method')
     end;
 
-filter(_, _, _) -> throw('filter: invalid inputs').
+filter(_, _, _) ->
+    throw('filter: invalid inputs').
 
 get_filters(Server) ->
     blocking(Server, get_filters).
@@ -111,9 +119,9 @@ plunk(Server, Nick) when    is_pid(Server)
            end,
     blocking(Server, {filter, compose, Pred});
 
-plunk(Server, _) when is_pid(Server)  -> throw('chat: bad Nick');
-plunk(_, Nick) when is_atom(Nick)     -> throw('chat: bad Server');
-plunk(_, _)                           -> throw('chat: bad inputs').
+plunk(Server, _) when is_pid(Server) -> throw('chat: bad Nick');
+plunk(_, Nick) when is_atom(Nick)    -> throw('chat: bad Server');
+plunk(_, _)                          -> throw('chat: bad inputs').
 
 % censor(Server, Words) add a filter for ignoring messages containing any word
 % in Words, which should be a list of strings. Should be implemented using
