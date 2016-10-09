@@ -11,12 +11,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % API: A relay chat server.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Server :
-% Nick   :
-% Cont   :
-% Method :
-% Pred   :
-% Words  :
 
 % For staring an ERC server.
 %   success => {ok, Server}
@@ -47,7 +41,6 @@ connect(_, _)                          -> throw('connect: bad inputs').
 % When a client is connected it should be ready to receive Erlang messages which
 % are pairs of the form {Ref, Msg} where Ref is the reference returned from
 % connect, and Msg is an ERC message, presumably for showing in some kind of UI.
-
 % chat(Server, Cont) for sending a message with the content Cont, which should
 % be a string, to all other clients in the room. This function should be
 % non-blocking.
@@ -71,8 +64,10 @@ chat(_, _)                           -> throw('chat: bad inputs').
 % history(Server) for getting the recent messages (capped at 42 messages) sent
 % at the server. Returns a list of messages ordered so that newest message is
 % the first element in the list and the last element is the oldest message.
-history(Server) ->
-    blocking(Server, history).
+history(Server) when is_pid(Server) ->
+    blocking(Server, history);
+
+history(_) -> throw('history: bad Server').
 
 % filter(Server, Method, P) for filtering messages before they are sent to the
 % client. Where:
@@ -107,8 +102,10 @@ filter(Server, Method, Pred) when    is_pid(Server)
 filter(_, _, _) ->
     throw('filter: invalid inputs').
 
-get_filters(Server) ->
-    blocking(Server, get_filters).
+get_filters(Server) when is_pid(Server) ->
+    blocking(Server, get_filters);
+
+get_filters(_) -> throw('get_filters: bad Server').
 
 % Adds a filter for ignoring any message from a Nick.
 plunk(Server, Nick) when    is_pid(Server)
