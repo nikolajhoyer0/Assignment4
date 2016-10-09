@@ -207,35 +207,37 @@ chat_logic(Client, Clients, Cont, Filters, Ref, MsgLog) ->
     case lists:keyfind(Client, 1, Clients) of
 
         % Abort if the user does not exist
-        false          ->
+        false ->
             NewMsgLog = MsgLog;
-        {Client, Nick} ->
+
+        % Otherwise, proceed to send messages
+        {_, FromNick} ->
+            Msg = {FromNick, Cont},
+
             % Add the message to the log
-            NewMsgLog = lists:sublist([ {Nick, Cont} | MsgLog ], 42),
+            NewMsgLog = lists:sublist([ Msg | MsgLog ], 42),
 
             % A function for sending a single message to a client
-            SendMsg = fun({To, Nick_}) ->
-                case lists:keyfind(Client, 1, Filters) of
+            SendMsg = fun({ToPid, _}) ->
+                case lists:keyfind(ToPid, 1, Filters) of
 
                     % No filter exists, just send the message
                     false ->
-                        To ! {Ref, {Nick_, Cont}};
+                        ToPid ! {Ref, Msg};
 
                     % One or more filters found. If any predicate returns
                     % false, do not send the message. Otherwise send it.
                     {_, Preds} ->
-                        Filtered = fun(Pred, Acc) ->
-                            Pred({Nick_, Cont}) and Acc
-                        end,
-                        case lists:foldl(Filtered, true, Preds) of
+                        Allow = fun(Pred, Acc) -> Pred(Msg) and Acc end,
+                        case lists:foldl(Allow, true, Preds) of
                             false -> ok;
-                            true  -> To ! {Ref, {Nick_, Cont}}
+                            true  -> ToPid ! {Ref, Msg}
                         end
                 end
             end,
 
             % Send messages to all connected clients
-            lists:map(SendMsg, Clients)
+            lists:foreach(SendMsg, Clients)
     end,
     NewMsgLog.
 
