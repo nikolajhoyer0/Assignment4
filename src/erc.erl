@@ -87,8 +87,8 @@ history(Server) ->
 %       for a message to be sent to the client. Otherwise, P should replace
 %       any previous filter (if any) installed for the client.
 filter(Server, Method, Pred) when    is_pid(Server)
-                             andalso is_function(Pred)
-                             andalso is_atom(Method) ->
+                             andalso is_atom(Method)
+                             andalso is_function(Pred) ->
 
     try Pred({atom, "String"}) of
         true  -> ok;
