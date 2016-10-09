@@ -90,6 +90,11 @@ filter(Server, Method, Pred) when    is_pid(Server)
                              andalso is_atom(Method)
                              andalso is_function(Pred) ->
 
+    case Method == compose orelse Method == replace of
+       true  -> ok;
+       false -> throw('filter: invalid method')
+    end,
+
     try Pred({atom, "String"}) of
         true  -> ok;
         false -> ok;
@@ -97,10 +102,7 @@ filter(Server, Method, Pred) when    is_pid(Server)
     catch _:_ -> throw('filter: invalid predicate')
     end,
 
-    case Method == compose orelse Method == replace of
-        true  -> blocking(Server, {filter, Method, Pred});
-        false -> throw('filter: invalid method')
-    end;
+    blocking(Server, {filter, Method, Pred});
 
 filter(_, _, _) ->
     throw('filter: invalid inputs').
