@@ -56,9 +56,9 @@ chat(Server, Cont) when is_pid(Server)
         false -> throw('chat: message contains an invalid ASCII character')
     end;
 
-chat(Server, _) when is_pid(Server)  -> throw('chat: bad message');
-chat(_, Cont) when is_list(Cont)     -> throw('chat: bad Server');
-chat(_, _)                           -> throw('chat: bad inputs').
+chat(Server, _) when is_pid(Server) -> throw('chat: bad message');
+chat(_, Cont) when is_list(Cont)    -> throw('chat: bad Server');
+chat(_, _)                          -> throw('chat: bad inputs').
 
 
 % history(Server) for getting the recent messages (capped at 42 messages) sent
